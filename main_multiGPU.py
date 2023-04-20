@@ -176,12 +176,12 @@ def main_worker(gpu, ngpus_per_node, args):
     criterion = nn.BCEWithLogitsLoss().to(device)
     
     if args.optim=='SGD':
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     else:
-        optimizer = torch.optim.AdamW(model.parameters(), eps=args.optimizer_eps, betas=args.optimizer_betas,
+        optimizer = optim.AdamW(model.parameters(), eps=args.optimizer_eps, betas=args.optimizer_betas,
                                         lr=args.lr, weight_decay=args.weight_decay)
     if args.scheduler=='LambdaLR':
-        lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=lambda epoch:args.lambda_weight**epoch)
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=lambda epoch:args.lambda_weight**epoch)
     else:
         scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=args.t_scheduler, T_mult=args.trigger_scheduler, 
                                                   eta_max=args.eta_scheduler, T_up=args.up_scheduler, gamma=args.gamma_scheduler)
