@@ -97,9 +97,9 @@ def main():
     criterion = nn.CrossEntropyLoss().to(device)
 
     if args.optim=='SGD':
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     else:
-        optimizer = torch.optim.AdamW(model.parameters(), eps=args.optimizer_eps, betas=args.optimizer_betas,
+        optimizer = optim.AdamW(model.parameters(), eps=args.optimizer_eps, betas=args.optimizer_betas,
                                         lr=args.lr, weight_decay=args.weight_decay)
     if args.scheduler=='LambdaLR':
         scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=lambda epoch:args.lambda_weight**epoch)
@@ -146,11 +146,10 @@ def main():
         file.close()
 
 def train(model=None, write_iter_num=5, train_dataset=None, optimizer=None, device=None, criterion=torch.nn.BCELoss(), epoch=None, file=None):
-    #scaler = torch.cuda.amp.GradScaler()
     assert train_dataset is not None, print("train_dataset is none")
     model.train()        
     ave_accuracy = AverageMeter()
-    #scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.cuda.amp.GradScaler()
     for idx, (Image, Label) in enumerate(tqdm(train_dataset)):
         #model input data
         Input = Variable(Image.to(device), requires_grad=False)
