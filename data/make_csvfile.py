@@ -11,16 +11,19 @@ parser.add_argument('--save_path', type=str, required=True, help='Save csv path'
 
 def write_and_save(image_lists, label_lists, outpath):
     data = {'image':image_lists, 'label':label_lists}
-    df = pd.DataFrame.from_dict(train_data)
+    df = pd.DataFrame.from_dict(data)
     df.to_csv(outpath)
 
 def main():
     args = parser.parse_args()
     class_lists = os.listdir(args.image_path)
-    image_lists = [os.path.join(args.image_path, classes, images) for images in os.listdir(os.path.join(args.image_path, classes)) for classes in class_lists]
-    label_lists = [idx for images in os.listdir(os.path.join(args.image_path, classes)) for idx, classes in enumerate(class_lists)]
+    for idx, classes in enumerate(class_lists):
+        image_lists = [os.path.join(args.image_path, classes, images) for images in os.listdir(os.path.join(args.image_path, classes))]
+        label_lists = [idx for _ in os.listdir(os.path.join(args.image_path, classes))]
+        
     for idx, classes in enumerate(class_lists):
         print(f'Class : {classes} Label : {idx}')
+
     data_indices = np.arange(0, len(image_lists))
     train_idx = np.random.choice(len(data_indices), int(len(data_indices)*args.train_ratio), replace=False)
     valid_idx = np.random.choice(list(set(data_indices)-set(train_idx)), int(len(data_indices)*args.valid_ratio), replace=False)

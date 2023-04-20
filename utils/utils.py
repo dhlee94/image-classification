@@ -154,8 +154,8 @@ def get_confusion_matrix(label, pred, size, num_class, ignore=-1):
                                  i_pred] = label_count[cur_index]
     return confusion_matrix
 
-def classification_accruracy(predict, target, thresh=0.5, sigmoid=False):
-    predict = torch.sigmoid(predict).detach().cpu().numpy() if sigmoid else predict
+def classification_accruracy(predict, target, thresh=0.5):
+    predict = torch.sigmoid(predict).detach().cpu().numpy()
     target = target.detach().cpu().numpy()
     predict[predict>=thresh] = 1
     predict[predict<thresh] = 0
@@ -165,8 +165,8 @@ def classification_accruracy(predict, target, thresh=0.5, sigmoid=False):
     #f1 = metrics.f1_score(target, predict)    
     return accuracy, np.sum(predict, axis=0), np.sum(target, axis=0)
 
-def classification_accruracy_multi(predict, target, softmax=True):
-    predict = torch.softmax(predict, dim=-1).detach().cpu().numpy() if softmax else predict
+def classification_accruracy_multi(predict, target):
+    predict = torch.softmax(predict, dim=-1).detach().cpu().numpy()
     target = target.detach().cpu().numpy()
     predict = np.array(predict.argmax(axis=-1))
     target = np.array(target.argmax(axis=-1))
@@ -187,7 +187,7 @@ def classification_f1_multi(predict, target, softmax=True):
     f1 = metrics.f1_score(target, predict)   
     return f1, precision, recall
 
-def specificity_and_sensitivity(predict, target, thresh, softmax=False, sigmoid=False):
+def specificity_and_sensitivity(predict, target, thresh=0.5, softmax=False, sigmoid=False):
     if sigmoid:
         predict = torch.sigmoid(predict).detach().cpu().numpy()
         target = target.detach().cpu().numpy()
