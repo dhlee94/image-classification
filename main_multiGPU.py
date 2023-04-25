@@ -1,6 +1,7 @@
 from utils.utils import AddParserManager, seed_everything
 import argparse
 from core.optimizer import CosineAnnealingWarmUpRestarts
+from core.function import train_epoch
 from data.dataset import ImageDataset_Classification
 from timm.models.layers import to_2tuple
 from torch.utils.data import DataLoader
@@ -16,14 +17,8 @@ from timm.scheduler.cosine_lr import CosineLRScheduler
 from timm.loss import LabelSmoothingCrossEntropy
 import pandas as pd
 import cv2
-import sys
-from torch.utils.data.distributed import DistributedSampler
-from torch.nn.parallel import DistributedDataParallel
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from utils.utils import save_checkpoint, AverageMeter, classification_accruracy_multi
-from tqdm import tqdm
-from torch.autograd import Variable
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int,
@@ -92,7 +87,6 @@ def main():
     
 def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
-    log_path = args.log_path
     if args.gpu is not None:
         print("Use GPU: {} for training".format(args.gpu))
         
@@ -213,79 +207,8 @@ def main_worker(gpu, ngpus_per_node, args):
         optimizer.load_state_dict(checkpoint['optimizer'])
         scheduler.load_state_dict(checkpoint['scheduler'])
         
-    for epoch in range(start_epoch, args.epoch):
-        is_best = False
-        file = open(os.path.join(log_path, f'{epoch}_log.txt'), 'a')
-        if args.distributed:
-            train_sampler.set_epoch(epoch)    
-        train(model=model, write_iter_num=args.write_iter_num, train_dataset=trainloader, optimizer=optimizer, 
-                    device=device, criterion=criterion, epoch=epoch, file=file)
-        accuracy = valid(model=model, write_iter_num=args.write_iter_num, valid_dataset=validloader, criterion=criterion, 
-                               device=device, epoch=epoch, file=file)
-        scheduler.step()
-        is_best = accuracy > best_loss
-        best_loss = max(best_loss, accuracy)            
-        if not args.multiprocessing_distributed or (args.multiprocessing_distributed 
-                and args.rank % ngpus_per_node == 0):
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'state_dict': model.state_dict(),
-                'best_acc1': best_loss,
-                'optimizer' : optimizer.state_dict(),
-                'scheduler' : scheduler.state_dict()
-            }, is_best=is_best, path=args.model_save_path)
-        file.close()
-
-def train(model=None, write_iter_num=5, train_dataset=None, optimizer=None, device=None, criterion=torch.nn.BCELoss(), epoch=None, file=None):
-    #scaler = torch.cuda.amp.GradScaler()
-    assert train_dataset is not None, print("train_dataset is none")
-    model.train()        
-    ave_accuracy = AverageMeter()
-    #scaler = torch.cuda.amp.GradScaler()
-    for idx, (Image, Label) in enumerate(tqdm(train_dataset)):
-        #model input data
-        Input = Variable(Image.to(device), requires_grad=False)
-        label = Variable(Label.to(device), requires_grad=False)
-        Output = model(Input)
-        loss = criterion(Output, label.squeeze(dim=-1))            
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        accuracy = classification_accruracy_multi(Output, label)
-        ave_accuracy.update(accuracy)
-        if idx % write_iter_num == 0:
-            tqdm.write(f'Epoch : {epoch} Iter : {idx}/{len(train_dataset)} '
-                       f'Loss : {loss :.4f} '
-                       f'Accuracy : {accuracy :.2f} ')
-        if idx % (2*write_iter_num) == 0:
-            tqdm.write(f'Epoch : {epoch} Iter : {idx}/{len(train_dataset)} '
-                    f'Loss : {loss :.4f} '
-                    f'Accuracy : {accuracy :.2f} ', file=file)
-    tqdm.write(f'Average Accuracy : {ave_accuracy.average() :.4f} \n\n')
-    tqdm.write(f'Average Accuracy : {ave_accuracy.average() :.4f} \n\n', file=file)
-    
-def valid(model=None, write_iter_num=5, valid_dataset=None, criterion=torch.nn.BCELoss(), device=None, epoch=None, file=None):
-    ave_accuracy = AverageMeter()
-    model.eval()
-    with torch.no_grad():
-        for idx, (Image, Label) in enumerate(tqdm(valid_dataset)):
-            #model input data
-            Input = Variable(Image.to(device), requires_grad=False)
-            label = Variable(Label.to(device), requires_grad=False)
-            Output = model(Input)
-            loss = criterion(Output, label.squeeze(dim=-1))
-            accuracy = classification_accruracy_multi(Output, label)
-            ave_accuracy.update(accuracy)
-            if idx % (write_iter_num) == 0:
-                tqdm.write(f'Epoch : {epoch} Iter : {idx}/{len(valid_dataset)} '
-                        f'Validation Loss : {loss :.2f} '
-                        f'Validation Accuracy : {accuracy :.2f} ')
-            if idx % (2*write_iter_num) == 0:
-                tqdm.write(f'Epoch : {epoch} Iter : {idx}/{len(valid_dataset)} '
-                            f'Validation Loss : {loss :.2f} '
-                            f'Validation Accuracy : {accuracy :.2f} ', file=file)
-        tqdm.write(f'Average Accuracy : {ave_accuracy.average() :.2f} \n', file=file)
-    return ave_accuracy.average()  
+    train_epoch(model=model, write_iter_num=args.write_iter_num, trainloader=trainloader, validloader=validloader, optimizer=optimizer, scheduler=scheduler, device=device, 
+                criterion=criterion, start_epoch=start_epoch, end_epoch=args.epoch, log_path=args.log_path, model_path=args.model_save_path, best_loss=best_loss)
 
 if __name__ == '__main__':
     main()
